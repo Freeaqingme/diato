@@ -3,13 +3,13 @@ package worker
 import (
 	"context"
 	"diato/util/stop"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"time"
-	"fmt"
-	"io"
 	//"bytes"
 )
 
@@ -30,8 +30,6 @@ func (w *Worker) httpListen() {
 
 	srv.Serve(w.ipcSocket)
 }
-
-
 
 func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 	director := func(req *http.Request) {
@@ -69,10 +67,13 @@ type httpTransport struct {
 
 func (t *httpTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	resp, err = t.RoundTripper.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
 
 	fmt.Println(resp.Status)
 	for k, v := range resp.Header {
-		fmt.Println(k,v)
+		fmt.Println(k, v)
 	}
 
 	r := resp.Body
