@@ -25,7 +25,7 @@ void isolateFileSystem(void) {
   size_t len;
   // This is awfully Linux-specific. Other (more Posix-like) OS's should
   // probably use fcntl with F_GETPATH
-  if ((len = readlink("/proc/self/fd/3", chroot_dir, 255) == -1) {
+  if ((len = readlink("/proc/self/fd/3", chroot_dir, 255)) == -1) {
     fprintf(stderr, "Could not determine chroot directory: %s\n",
             strerror(errno));
   } else {

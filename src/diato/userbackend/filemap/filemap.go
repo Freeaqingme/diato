@@ -19,9 +19,12 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"strconv"
 	"sync"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 type Filemap struct {
@@ -39,6 +42,11 @@ func NewFilemap(path string, entriesRequired int) (*Filemap, error) {
 	}
 
 	err := res.update()
+	if err != nil {
+		return res, err
+	}
+
+	res.watchForUpdates()
 	return res, err
 }
 
@@ -64,12 +72,13 @@ func (f *Filemap) updateWithContents(contents []byte) error {
 		host := string(lineParts[len(lineParts)-1:][0])
 
 		if _, alreadyExists := newMap[user]; alreadyExists {
-			return fmt.Errorf("Domain %s was defined more than once on line %d", user, i)
+			log.Printf("Notice: Domain %s was defined more than once on line %d", user, i)
 		}
 		newMap[user] = host
 	}
 
-	if len(newMap) < f.minEntries {
+	size := len(newMap)
+	if size < f.minEntries {
 		return fmt.Errorf("New Map only contains %d entries, which is less than the set minimum %d",
 			len(newMap), f.minEntries)
 	}
@@ -77,6 +86,7 @@ func (f *Filemap) updateWithContents(contents []byte) error {
 	f.Lock()
 	defer f.Unlock()
 	f.users = newMap
+	log.Printf("Loaded new user map. It now contains %d entries", size)
 
 	return nil
 }
@@ -103,9 +113,26 @@ func (f *Filemap) GetServerForUser(user string) (string, uint32, error) {
 	return host, uint32(port), nil
 }
 
-func (f *Filemap) getNoOfUsers() int {
-	f.RLock()
-	defer f.RUnlock()
+func (f *Filemap) watchForUpdates() error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
 
-	return len(f.users)
+	go func() {
+		for {
+			select {
+			case event := <-watcher.Events:
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					if err := f.update(); err != nil {
+						log.Print("Error: Could not update blacklist file", err.Error()) // TODO: Logging
+					}
+				}
+			case err := <-watcher.Errors:
+				log.Print("Error: filemap watcher " + err.Error()) // TODO: Logging
+			}
+		}
+	}()
+
+	return watcher.Add(f.path)
 }
