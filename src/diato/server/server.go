@@ -16,39 +16,68 @@
 package server
 
 import (
-	"fmt"
-	"net"
-
-	"diato/util/stop"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"net"
+
+	"diato/userbackend"
+	"diato/userbackend/filemap"
+	"diato/util/stop"
 )
 
 type Server struct {
-	config *Config
+	userBackend userbackend.Userbackend
 
-	listener         net.Listener
-	workerSocketPath string
+	httpSocketPath string
+	chrootPath     string
 }
 
-func NewServer(config *Config) *Server {
-	return &Server{
-		config: config,
+func Start(config *Config) error {
+	s := &Server{
+		httpSocketPath: config.General.HttpSocketPath,
+		chrootPath:     config.General.Chroot,
 	}
-}
 
-func (s *Server) Start() error {
+	if !config.FilemapUserbackend.Enabled {
+		return errors.New("No user backends were enabled")
+	}
+
+	userbackendConfig := config.FilemapUserbackend
+	var err error
+	s.userBackend, err = Filemap.NewFilemap(userbackendConfig.Path, userbackendConfig.MinEntries)
+	if err != nil {
+		return fmt.Errorf("Could ont initialize filemap userbackend: %s", err.Error())
+	}
+
+	if err := s.startRpc(); err != nil {
+		return err
+	}
+
 	if err := s.startWorker(); err != nil {
 		return err
 	}
 
-	ln, err := net.Listen("tcp", ":80")
+	for _, listen := range config.Listen {
+		s.Listen(listen.Bind)
+	}
+
+	return nil
+}
+
+func (s *Server) Listen(bind string) error {
+	ln, err := net.Listen("tcp", bind)
 	if err != nil {
 		return err
 	}
 
-	stopper := stop.NewStopper(s.Stop)
+	log.Print("Now listening on " + bind)
+
+	stopper := stop.NewStopper(func() {
+		ln.Close()
+	})
+
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -62,17 +91,12 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	s.listener = ln
-
 	return nil
-}
 
-func (s *Server) Stop() {
-	s.listener.Close()
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	client, err := net.Dial("unix", s.workerSocketPath)
+	client, err := net.Dial("unix", s.httpSocketPath)
 	if err != nil {
 		log.Fatalf("Dial failed: %v", err)
 	}
@@ -86,7 +110,6 @@ func (s *Server) handleConn(conn net.Conn) {
 		panic("Todo: error handling")
 	}
 
-	//log.Printf("Connected to localhost %v\n", conn)
 	go func() {
 		defer client.Close()
 		defer conn.Close()
@@ -97,7 +120,6 @@ func (s *Server) handleConn(conn net.Conn) {
 		defer conn.Close()
 		io.Copy(conn, client)
 	}()
-	log.Println("Main process received connection from: " + conn.RemoteAddr().String() + " for " + conn.LocalAddr().String())
 }
 
 // Originally derived from https://github.com/nabeken/mikoi

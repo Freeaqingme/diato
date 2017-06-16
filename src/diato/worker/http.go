@@ -2,18 +2,32 @@ package worker
 
 import (
 	"context"
-	"diato/util/stop"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"time"
-	//"bytes"
+
+	pb "diato/pb"
+	"diato/util/stop"
+
+	"github.com/Freeaqingme/go-proxyproto"
 )
 
-func (w *Worker) httpListen() {
+func (w *Worker) httpGetListener() (net.Listener, error) {
+	httpLn, err := net.FileListener(os.NewFile(4, "[socket]"))
+	if err != nil {
+		return nil, err
+	}
+
+	return &proxyproto.Listener{Listener: httpLn}, nil
+
+}
+
+func (w *Worker) httpListen(httpSocket net.Listener) {
 	srv := &http.Server{
 		ReadTimeout: 5 * time.Second,
 		IdleTimeout: 120 * time.Second,
@@ -28,13 +42,19 @@ func (w *Worker) httpListen() {
 		log.Print("HTTP Server gracefully stopped on Worker side")
 	})
 
-	srv.Serve(w.ipcSocket)
+	srv.Serve(httpSocket)
 }
 
 func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 	director := func(req *http.Request) {
+		var err error
 		req.URL.Scheme = "http"
-		req.URL.Host = "127.0.0.1:8080"
+		req.URL.Host, err = w.getHttpBackend(req)
+		if err != nil {
+			log.Printf("Couild not determine backend for client %s: %s", req.RemoteAddr, err.Error())
+			req.URL.Host = ""
+			return
+		}
 
 		log.Printf("%s '%s %s %s' -> %s '%s'\n",
 			req.RemoteAddr,
@@ -58,7 +78,23 @@ func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 				MaxIdleConnsPerHost: 64,
 			},
 		},
+		ModifyResponse: func(r *http.Response) error {
+			r.Header.Add("X-Powered-By", "Diato")
+			return nil
+		},
 	}
+}
+
+func (w *Worker) getHttpBackend(req *http.Request) (string, error) {
+	r, err := w.userBackend.GetServerForUser(
+		context.Background(),
+		&pb.UserBackendRequest{Name: req.Host},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s:%d", r.Server, r.Port), nil
 }
 
 type httpTransport struct {
@@ -71,10 +107,10 @@ func (t *httpTransport) RoundTrip(req *http.Request) (resp *http.Response, err e
 		return resp, err
 	}
 
-	fmt.Println(resp.Status)
-	for k, v := range resp.Header {
-		fmt.Println(k, v)
-	}
+	//fmt.Println(resp.Status)
+	//for k, v := range resp.Header {
+	//fmt.Println(k, v)
+	//}
 
 	r := resp.Body
 
@@ -82,7 +118,7 @@ func (t *httpTransport) RoundTrip(req *http.Request) (resp *http.Response, err e
 	resp.Body, writer = io.Pipe()
 
 	go func() {
-		defer resp.Body.Close()
+		defer writer.Close()
 		buf := make([]byte, 0, 4096)
 		for {
 			n, err := r.Read(buf[:cap(buf)])
@@ -97,7 +133,7 @@ func (t *httpTransport) RoundTrip(req *http.Request) (resp *http.Response, err e
 				return
 			}
 
-			fmt.Print(string(buf)) // processing here?
+			//fmt.Print(string(buf)) // processing here?
 
 			writer.Write(buf)
 			if err != nil && err != io.EOF {

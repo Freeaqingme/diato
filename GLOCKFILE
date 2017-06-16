@@ -1,9 +1,14 @@
 src/github.com/agtorre/gocolorize/ 99fea4bc9517f07eea8194702cb7076f4845b7de
 src/github.com/Freeaqingme/go-proxyproto/ 4f007d811a0ed931b4cbd16bf7eabc04d4a2c8eb
+src/github.com/golang/protobuf/ e325f446bebc2998605911c0a2650d9920361d4a
 src/github.com/robfig/glock/ 39b969c322811a58be9ec8be9d65198d43d8ba82
 src/github.com/seccomp/libseccomp-golang/ 9814e55a2e59df39b8ad4fbff1226585ebb84674
 src/github.com/spf13/cobra/ f4f10f6873175e78bb1503da7e78c260a7f3ef63
 src/github.com/spf13/pflag/ 2300d0f8576fe575f71aaa5b9bbe4e1b0dc2eb51
+src/golang.org/x/net/ dfe83d419c9403b40b19d08cdba2afec27b002f7
+src/golang.org/x/text/ 3491b61b9edc56653ad4333e605e2908e46a036b
 src/golang.org/x/tools/ c853fd576988aeebd3665f6224972f1379960013
+src/google.golang.org/genproto/ aa2eb687b4d3e17154372564ad8d6bf11c3cf21f
+src/google.golang.org/grpc/ 1ab4adf22dbaf4eb6cfd01eaa711612ffcf87890
 src/gopkg.in/gcfg.v1/ 27e4946190b4a327b539185f2b5b1f7c84730728
 src/gopkg.in/warnings.v0/ 8a331561fe74dadba6edfc59f3be66c22c3b065d

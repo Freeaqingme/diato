@@ -15,20 +15,30 @@
 // limitations under the License.
 package worker
 
-import (
-	"net"
-	"os"
+/*
+#cgo CFLAGS: -Wall
+#cgo LDFLAGS: -L/usr/include/sys/capability.h
 
+extern void secureEnvironment();
+void __attribute__((constructor)) init(void) {
+	secureEnvironment();
+}
+*/
+import "C"
+
+import (
 	"errors"
 	"fmt"
-	"github.com/Freeaqingme/go-proxyproto"
-	seccomp "github.com/seccomp/libseccomp-golang"
+	"os"
 	"syscall"
 	"time"
+
+	"diato/pb"
+	seccomp "github.com/seccomp/libseccomp-golang"
 )
 
 type Worker struct {
-	ipcSocket net.Listener
+	userBackend diato.UserBackendClient
 }
 
 func NewWorker() *Worker {
@@ -41,15 +51,16 @@ func (w *Worker) Start() error {
 			"Don't invoke it manually, just use 'daemon start'")
 	}
 
-	listener, err := net.FileListener(os.NewFile(3, "[socket]"))
+	httpListener, err := w.httpGetListener()
 	if err != nil {
 		return err
 	}
+	go w.httpListen(httpListener)
 
-	proxyProtoListener := &proxyproto.Listener{Listener: listener}
-	w.ipcSocket = proxyProtoListener
+	if err := w.rpcInit(); err != nil {
+		return err
+	}
 
-	go w.httpListen()
 	return nil
 
 	// See: https://github.com/seccomp/libseccomp-golang/issues/23#issuecomment-296441184

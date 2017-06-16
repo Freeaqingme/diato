@@ -15,16 +15,38 @@
 // limitations under the License.
 package server
 
-import ()
+import (
+	"errors"
+
+	"diato/userbackend/filemap"
+)
 
 type Config struct {
+	General            GeneralConfig  `gcfg:"diato"`
+	FilemapUserbackend Filemap.Config `gcfg:"filemap-userbackend"`
+	Listen             map[string]*struct {
+		Bind string
+	}
+}
+
+type GeneralConfig struct {
+	HttpSocketPath string `gcfg:"http-socket-path"`
+	Chroot         string
 }
 
 func NewConfig() *Config {
-	return &Config{}
+	return &Config{
+		General: GeneralConfig{
+			HttpSocketPath: "/var/run/diato/http.socket",
+			Chroot:         "/var/run/diato/chroot",
+		},
+	}
 }
 
 func (c *Config) Validate() error {
+	if len(c.Listen) == 0 {
+		return errors.New("No listen sections defined, expected at least one")
+	}
 
 	return nil
 }

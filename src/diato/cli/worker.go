@@ -50,25 +50,9 @@ func init() {
 func runWorker(_ *cobra.Command, args []string) error {
 	log.Printf("Starting Worker")
 
-	//config := server.NewConfig()
-	//err := gcfg.ReadFileInto(config, daemonOpts.ConfFile)
-	//if err != nil {
-	//	return fmt.Errorf("Could not parse configuration: %s", err.Error())
-	//}
-	//
-	//if err = config.Validate(); err != nil {
-	//	return fmt.Errorf("Could not parse configuration: %s", err.Error())
-	//}
-
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt)
 	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGQUIT)
-
-	//s := server.NewServer(config)
-	//
-	//if err := s.Start(); err != nil {
-	//	return fmt.Errorf("diato could not start: %s", err)
-	//}
 
 	w := worker.NewWorker()
 	w.Start()
@@ -79,6 +63,6 @@ func runWorker(_ *cobra.Command, args []string) error {
 		stop.Stop()
 	}
 
-	log.Printf("Successfully ceased all worker operations")
+	log.Print("Successfully ceased all worker operations")
 	return nil
 }

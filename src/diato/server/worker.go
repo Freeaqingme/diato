@@ -16,34 +16,35 @@
 package server
 
 import (
-	"fmt"
-
-	"math/rand"
+	"errors"
 	"net"
 	"os"
 	"os/exec"
 	"syscall"
-	"time"
 
 	"diato/util/stop"
 )
 
 func (s *Server) startWorker() error {
-	fd, err := s.getNewWorkerSocket()
+	httpFd, err := s.getNewHttpSocket()
+	if err != nil {
+		return err
+	}
+
+	chrootFd, err := s.getChrootFd()
 	if err != nil {
 		return err
 	}
 
 	cmd := exec.Command(os.Args[0], "internal-worker", "start")
-	cmd.ExtraFiles = []*os.File{fd}
+	cmd.ExtraFiles = []*os.File{chrootFd, httpFd}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{
-			Uid: 65534,
-			Gid: 65534,
-		},
-		Setsid: true,
+		//Credential: &syscall.Credential{
+		//},
+		Setsid:    true,
+		Pdeathsig: syscall.SIGTERM,
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -61,13 +62,24 @@ func (s *Server) startWorker() error {
 			panic("Worker died!")
 		}
 	}()
+
 	return nil
 }
 
-func (s *Server) getNewWorkerSocket() (*os.File, error) {
-	rand.Seed(time.Now().UnixNano())
-	s.workerSocketPath = fmt.Sprintf("/tmp/diato-worker.%d", rand.Int())
-	listener, err := net.Listen("unix", s.workerSocketPath)
+// Sets up a new http socket. This socket is used to carry
+// plain-text http messages to the worker for further processing
+// Messages are supported by the proxy protocol (currently version
+// 1) to determine source ip. SSL is stripped in the server daemon.
+//
+// It is desirable to use version 2 fo the proxy protocol some time
+// because it allows to also convey things like SSL usage.
+//
+// We spawn the socket in the server, the FD is handed over to the
+// worker which is responsible for listening and accepting
+// connections on this socket. This ensures the worker can run
+// in a permission-less environment and does not require any IO.
+func (s *Server) getNewHttpSocket() (*os.File, error) {
+	listener, err := net.Listen("unix", s.httpSocketPath)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +90,29 @@ func (s *Server) getNewWorkerSocket() (*os.File, error) {
 	}
 
 	stop.NewStopper(func() {
-		os.Remove(s.workerSocketPath)
+		os.Remove(s.httpSocketPath)
 	})
 	return fd, nil
+}
+
+// Chrooting of the worker is done in plain C where ARGV/ARGC is not
+// available. Nor are we going to reimplement the config parser in C,
+// as such, we already open and validate the directory that the worker
+// should chroot into.
+func (s *Server) getChrootFd() (*os.File, error) {
+	file, err := os.Open(s.chrootPath)
+	if err != nil {
+		return nil, err
+	}
+
+	fileinfo, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if !fileinfo.IsDir() {
+		return nil, errors.New("Chroot must be a directory, but it does not appear to be")
+	}
+
+	return file, nil
 }
