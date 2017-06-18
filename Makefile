@@ -2,6 +2,9 @@ export GOPATH:=$(shell pwd)
 
 GO        ?= go
 PKG       := ./src/diato/
+# TODO: Do we also want to run with debug in production?
+# the github.com/rjeczalik/notify prints a lot of debug
+# stuff when this is set.
 BUILDTAGS := debug
 VERSION   ?= $(shell git describe --dirty --tags | sed 's/^v//' )
 

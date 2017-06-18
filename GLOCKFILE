@@ -1,7 +1,7 @@
 src/github.com/agtorre/gocolorize/ 99fea4bc9517f07eea8194702cb7076f4845b7de
 src/github.com/Freeaqingme/go-proxyproto/ 4f007d811a0ed931b4cbd16bf7eabc04d4a2c8eb
-src/github.com/fsnotify/fsnotify/ 4da3e2cfbabc9f751898f250b49f2439785783a1
 src/github.com/golang/protobuf/ e325f446bebc2998605911c0a2650d9920361d4a
+src/github.com/rjeczalik/notify/ 88a54d914928e1faebb1c2195605dc87bd98dc27
 src/github.com/robfig/glock/ 39b969c322811a58be9ec8be9d65198d43d8ba82
 src/github.com/seccomp/libseccomp-golang/ 84e90a91acea0f4e51e62bc1a75de18b1fc0790f
 src/github.com/spf13/cobra/ b4dbd37a01839e0653eec12aa4bbb2a2ce7b2a37

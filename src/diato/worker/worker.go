@@ -61,6 +61,8 @@ func (w *Worker) Start() error {
 		return err
 	}
 
+	// TODO: Check uid as to ensure the dropping of privileges actually ran
+
 	return nil
 
 	// See: https://github.com/seccomp/libseccomp-golang/issues/23#issuecomment-296441184

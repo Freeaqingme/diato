@@ -25,13 +25,15 @@ type Config struct {
 	General            GeneralConfig  `gcfg:"diato"`
 	FilemapUserbackend Filemap.Config `gcfg:"filemap-userbackend"`
 	Listen             map[string]*struct {
-		Bind string
+		Bind      string
+		TlsEnable bool `gcfg:"tls-enable"`
 	}
 }
 
 type GeneralConfig struct {
 	HttpSocketPath string `gcfg:"http-socket-path"`
 	Chroot         string
+	TlsCertDir     string `gcfg:"tls-cert-dir"`
 }
 
 func NewConfig() *Config {

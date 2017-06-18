@@ -79,6 +79,7 @@ func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 			},
 		},
 		ModifyResponse: func(r *http.Response) error {
+			// TODO: If backend is unavailable this header is never added
 			r.Header.Add("X-Powered-By", "Diato")
 			return nil
 		},

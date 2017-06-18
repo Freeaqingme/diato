@@ -67,6 +67,8 @@ func runDaemon(_ *cobra.Command, args []string) error {
 	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGQUIT)
 
 	if err := server.Start(config); err != nil {
+		log.Print(err.Error())
+		stop.Stop()
 		return fmt.Errorf("diato could not start: %s", err)
 	}
 

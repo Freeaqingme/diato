@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/fsnotify/fsnotify"
+	"github.com/rjeczalik/notify"
 )
 
 type Filemap struct {
@@ -33,6 +33,8 @@ type Filemap struct {
 	path       string
 	users      map[string]string
 	minEntries int
+
+	watcher chan notify.EventInfo
 }
 
 func NewFilemap(path string, entriesRequired int) (*Filemap, error) {
@@ -111,28 +113,4 @@ func (f *Filemap) GetServerForUser(user string) (string, uint32, error) {
 	}
 
 	return host, uint32(port), nil
-}
-
-func (f *Filemap) watchForUpdates() error {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					if err := f.update(); err != nil {
-						log.Print("Error: Could not update blacklist file", err.Error()) // TODO: Logging
-					}
-				}
-			case err := <-watcher.Errors:
-				log.Print("Error: filemap watcher " + err.Error()) // TODO: Logging
-			}
-		}
-	}()
-
-	return watcher.Add(f.path)
 }
