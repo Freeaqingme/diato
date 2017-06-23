@@ -47,12 +47,14 @@ func (w *Worker) httpListen(httpSocket net.Listener) {
 
 func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 	director := func(req *http.Request) {
+		w.modules.ProcessRequest(req)
+
 		var err error
 		req.URL.Scheme = "http"
 		req.URL.Host, err = w.getHttpBackend(req)
 		if err != nil {
 			log.Printf("Couild not determine backend for client %s: %s", req.RemoteAddr, err.Error())
-			req.URL.Host = ""
+			req.URL.Host = "" // TODO: This is suboptimal as modsec will crash upon an empty url
 			return
 		}
 

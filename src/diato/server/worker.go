@@ -41,8 +41,6 @@ func (s *Server) startWorker() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		//Credential: &syscall.Credential{
-		//},
 		Setsid:    true,
 		Pdeathsig: syscall.SIGTERM,
 	}

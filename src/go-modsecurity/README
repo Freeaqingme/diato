@@ -1,0 +1,12 @@
+This directory must eventually be migrated to a separate module
+
+LD_FLAGS:
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/modsecurity/lib/ ./bin/diato daemon start --config ./diato.conf
+
+
+// Getting Started:
+// sudo apt-get install libxml2-dev
+// git clone --recursive -b "v3/master" https://github.com/SpiderLabs/ModSecurity.git
+// cd ModSecurity
+// make
+// sudo make install

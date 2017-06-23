@@ -17,7 +17,7 @@ package worker
 
 /*
 #cgo CFLAGS: -Wall
-#cgo LDFLAGS: -L/usr/include/sys/capability.h
+#cgo LDFLAGS: -lcap -lseccomp
 
 extern void secureEnvironment();
 void __attribute__((constructor)) init(void) {
@@ -34,11 +34,14 @@ import (
 	"time"
 
 	"diato/pb"
+
 	seccomp "github.com/seccomp/libseccomp-golang"
 )
 
 type Worker struct {
 	userBackend diato.UserBackendClient
+
+	modules *moduleRegistry
 }
 
 func NewWorker() *Worker {
@@ -50,6 +53,8 @@ func (w *Worker) Start() error {
 		return errors.New("The worker refuses to run as root profusely. " +
 			"Don't invoke it manually, just use 'daemon start'")
 	}
+
+	w.initModules(moduleInitializers)
 
 	httpListener, err := w.httpGetListener()
 	if err != nil {
