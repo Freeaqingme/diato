@@ -19,7 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/prctl.h>
 
 void isolateFileSystem(void) {
   char chroot_dir[256] = "";
@@ -47,13 +46,6 @@ void isolateFileSystem(void) {
 }
 
 void dropUserPrivs(void) {
-  int death_sig;
-  if (prctl(PR_GET_PDEATHSIG, &death_sig) != 0) {
-    fprintf(stderr, "Could not get original PDEATHSIG: %s\n",
-        strerror(errno));
-    exit(1);
-  }
-
   if (setgid(65534) != 0) {
     fprintf(stderr, "Could not setgid() to group nobody: %s\n",
             strerror(errno));
@@ -62,13 +54,6 @@ void dropUserPrivs(void) {
 
   if (setuid(65534) != 0) {
     fprintf(stderr, "Could not setuid() to user nobody: %s\n", strerror(errno));
-    exit(1);
-  }
-
-  // Changing of uid/gid will also reset PDEATHSIG, set it again
-  if (prctl(PR_SET_PDEATHSIG, death_sig) != 0) {
-    fprintf(stderr, "Could not restore original PDEATHSIG (%d): %s",
-            death_sig, strerror(errno));
     exit(1);
   }
 
@@ -84,12 +69,6 @@ void secureEnvironment(void) {
 
   isolateFileSystem();
   dropUserPrivs();
-
-  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0,0, 0) != 0) {
-    fprintf(stderr, "Could not prctl(PR_SET_NO_NEW_PRIVS): %s",
-            strerror(errno));
-    exit(1);
-  }
 
   // TODO: Drop capabilities?
 }
