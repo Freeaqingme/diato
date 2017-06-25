@@ -21,13 +21,13 @@ package worker
 
 extern void secureEnvironment();
 void __attribute__((constructor)) init(void) {
-	secureEnvironment();
+	// secureEnvironment();
 }
 */
 import "C"
 
 import (
-	"errors"
+	//"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -50,8 +50,8 @@ func NewWorker() *Worker {
 
 func (w *Worker) Start() error {
 	if os.Getuid() == 0 {
-		return errors.New("The worker refuses to run as root profusely. " +
-			"Don't invoke it manually, just use 'daemon start'")
+		//return errors.New("The worker refuses to run as root profusely. " +
+		//	"Don't invoke it manually, just use 'daemon start'")
 	}
 
 	w.initModules(moduleInitializers)

@@ -1,6 +1,7 @@
 // Diato - Reverse Proxying for Hipsters
 //
 // Copyright 2016-2017 Dolf Schimmel
+// Copyright (c) 2015 Trustwave Holdings, Inc. (http://www.trustwave.com/)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 package modsecurity
 
 /*
@@ -22,19 +24,6 @@ package modsecurity
 
 #include "modsecurity/modsecurity.h"
 #include "modsecurity/transaction.h"
-
-
-int msc_add_request_header_bridge(Transaction *transaction, char *key, char *value) {
-	unsigned char * ukey;
-	unsigned char * uvalue;
-	ukey = (unsigned char *) key;
-	uvalue = (unsigned char *) value;
-
-	int ret;
-	ret = msc_add_request_header(transaction, ukey, uvalue);
-    return ret;
-}
-
 */
 import "C"
 
@@ -42,11 +31,14 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"net/http"
 	"errors"
 	"unsafe"
 )
 
+// Represents the inspection on an entire request.
+//
+// An instance of the transaction struct represents
+// an entire request, on its different phases.
 type transaction struct {
 	ruleset *RuleSet
 
@@ -54,6 +46,12 @@ type transaction struct {
 	msc_txn *C.struct_Transaction_t
 }
 
+// Create a new transaction for a given configuration and ModSecurity core.
+//
+// The transaction is the unit that will be used the inspect every request. It holds
+// all the information for a given request.
+//
+// Remember to cleanup the transaction when the transaction is complete. TODO: Describe / implement how
 func (r *RuleSet) NewTransaction(remoteAddr, localAddr string) (*transaction, error) {
 	remoteIp, remotePort, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
@@ -94,35 +92,64 @@ func (r *RuleSet) NewTransaction(remoteAddr, localAddr string) (*transaction, er
 	}, nil
 }
 
+// Perform the analysis on the URI and all the query string variables.
+//
+// There is no direct connection between this function and any phase of
+// the SecLanguage's phases. It is something that may occur between the
+// SecLanguage phase 1 and 2.
 func (txn *transaction) ProcessUri(uri, method, httpVersion string) bool {
+	cUri := C.CString(uri)
+	cMethod := C.CString(method)
+	cHttpVersion := C.CString(httpVersion)
+	defer C.free(unsafe.Pointer(cUri))
+	defer C.free(unsafe.Pointer(cMethod))
+	defer C.free(unsafe.Pointer(cHttpVersion))
+
 	// TODO: Check response?
 	fmt.Println(uri)
-	return 1 ==  C.msc_process_uri(txn.msc_txn,
-		C.CString(uri), C.CString(method), C.CString(httpVersion))
+	return 1 ==  C.msc_process_uri(txn.msc_txn, cUri, cMethod, cHttpVersion)
 }
 
-func (txn *transaction) AddRequestHeader(key, value string) bool {
-	return C.msc_add_request_header_bridge(txn.msc_txn, C.CString(key), C.CString(value) ) == 1
+// With this function it is possible to feed ModSecurity with a request header.
+func (txn *transaction) AddRequestHeader(key, value []byte) bool {
+	cKey := (*C.uchar)(unsafe.Pointer(&key[0]))
+	cValue := (*C.uchar)(unsafe.Pointer(&value[0]))
+	defer C.free(unsafe.Pointer(cKey))
+	defer C.free(unsafe.Pointer(cValue))
 
+	return 1 == C.msc_add_request_header(txn.msc_txn, cKey, cValue)
 }
 
-func (txn *transaction) ProcessRequestHeaders(hdrs *http.Header) bool {
-	if hdrs == nil {
-		goto process
-	}
-
-	for key,values := range *hdrs {
-		for _, value := range values {
-			txn.AddRequestHeader(key, value)
-		}
-	}
-
-process:
+// This function perform the analysis on the request headers, notice however
+// that the headers should be added prior to the execution of this function.
+//
+// Remember to check for a possible intervention.
+func (txn *transaction) ProcessRequestHeaders() bool {
 	return C.msc_process_request_headers(txn.msc_txn) == 1
 }
 
+// Adds request body to be inspected.
+//
+// With this function it is possible to feed ModSecurity with data for
+// inspection regarding the request body.
 func (txn *transaction) AppendRequestBody(bodyBuf []byte) bool {
-	return C.msc_append_request_body(txn.msc_txn, (*C.uchar)(unsafe.Pointer(C.CBytes(bodyBuf))), (C.size_t)(len(bodyBuf)) )== 1
+	return 1 == C.msc_append_request_body(txn.msc_txn, (*C.uchar)(unsafe.Pointer(C.CBytes(bodyBuf))), (C.size_t)(len(bodyBuf)) )
+}
+
+// Perform the analysis on the request body (if any)
+// This function perform the analysis on the request body. It is optional to
+// call that function. If this API consumer already know that there isn't a
+// body for inspect it is recommended to skip this step.
+//
+// It is necessary to "append" the request body prior to the execution of this function.
+//
+// Remember to check for a possible intervention.
+func (txn *transaction) ProcessRequestBody() bool {
+	return C.msc_process_request_body(txn.msc_txn) == 1
+}
+
+func (txn *transaction) Intervention() bool {
+	return txn.ShouldIntervene()
 }
 
 func (txn *transaction) ShouldIntervene() bool {
@@ -136,12 +163,7 @@ func (txn *transaction) ShouldIntervene() bool {
 	return true
 }
 
-/*
-msc_process_request_body(transaction);
-msc_add_response_header(transaction, "Content-type", "text/html");
-msc_process_response_headers(transaction, 200, "HTTP 1.0");
-msc_process_response_body(transaction);
-msc_process_logging(transaction);
-msc_transaction_cleanup(transaction);
-
-*/
+func (txn *transaction) Cleanup() {
+	C.msc_transaction_cleanup(txn.msc_txn)
+	txn.msc_txn = nil
+}

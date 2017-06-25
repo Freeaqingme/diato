@@ -38,10 +38,11 @@ void isolateFileSystem(void) {
     chroot_dir[len] = '\0';
   }
 
-  if (chroot(chroot_dir) != 0) {
-    fprintf(stderr, "Could not chroot() worker: %s\n", strerror(errno));
-    exit(1);
-  }
+// TODO
+//  if (chroot(chroot_dir) != 0) {
+    fprintf(stderr, "Could not chroot() worker into '%s': %s\n", chroot_dir, strerror(errno));
+//    exit(1);
+//  }
 
   if (chdir("/") != 0) {
     fprintf(stderr, "Could not chdir('/') worker: %s\n", strerror(errno));
@@ -121,8 +122,8 @@ void secureEnvironment(void) {
     return;
   }
 
-  isolateFileSystem();
-  dropUserPrivs();
-  dropCaps();
-  sandbox(); // TODO
+//  isolateFileSystem();
+//  dropUserPrivs();
+//  dropCaps();
+//  sandbox(); // TODO
 }

@@ -23,6 +23,7 @@ binary: LDFLAGS += -X "main.buildTag=v$(VERSION)"
 binary: LDFLAGS += -X "main.buildTime=$(shell date -u '+%Y-%m-%d %H:%M:%S UTC')"
 binary:
 	go install -tags '$(BUILDTAGS)' -ldflags '$(LDFLAGS)' diato
+#	go install -race -tags '$(BUILDTAGS)' -ldflags '$(LDFLAGS)' diato
 
 .PHONY: release
 release: BUILDTAGS=release

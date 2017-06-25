@@ -21,9 +21,10 @@ import (
 	"net/http"
 
 	"go-modsecurity"
-	//"io/ioutil"
-	//"log"
-	//"bytes"
+	"io/ioutil"
+	"log"
+	"bytes"
+	"runtime"
 )
 
 const name = "modsec"
@@ -46,9 +47,14 @@ func newModule(w *worker.Worker) ([]worker.Module, error) {
 	ruleset := modsec.NewRuleSet()
 	//fmt.Println(ruleset.AddFile("/home/dolf/Projects/diato/modsec.conf"))
 	rules := "SecRuleEngine On\n" +
-		"# SecDebugLog /dev/stderr\n" +
+		"SecRequestBodyAccess On\n" +
+		"SecRequestBodyLimit 102400\n" +
+		"SecDebugLog /dev/stderr\n" +
 		"SecDebugLogLevel 9\n" +
-		"SecRule ARGS \"@streq test\" \"id:1,phase:1,deny\"\n"
+		"SecRule REQUEST_URI|ARGS|REQUEST_BODY \"usernaaam\" \"id:1,phase:2,log,deny,msg:'Access Denied'\"\n" +
+	"SecRule REQUEST_BODY \"usernaaam\" \"id:3,phase:2,deny\"\n" +
+	"SecRule REQUEST_BODY \"usernaaam\" \"phase:2, t:none, deny,msg:'Matched some_bad_string', status:500,auditlog, id:3333\"\n" +
+		"SecRule ARGS \"@streq test\" \"id:2,phase:2,deny\"\n"
 	fmt.Println("rule errors", ruleset.AddRules(rules))
 
 	return []worker.Module{&module{
@@ -76,28 +82,34 @@ func (m *module) ProcessRequest(req *http.Request) {
 	httpVersion := fmt.Sprintf("%d.%d", req.ProtoMajor, req.ProtoMinor)
 
 	txn.ProcessUri(url.String(), req.Method, httpVersion)
-	txn.ProcessRequestHeaders(&req.Header)
+	// We don't currently parse request headers as it appears to corrupt our memory, somewhere
+	//for key,values := range req.Header{
+		//for _, value := range values {
+			//txn.AddRequestHeader(key, value)
+		//}
+	//}
 
-	/*****
-	// BODY */
-
-	fmt.Println( req.Body)
-
-	//if req.Body != nil {
-	//
-	//	body, err := ioutil.ReadAll(req.Body)
-	//	if err != nil {
-	//		log.Printf("Error reading body: %v", err)
-	//		return
-	//	}
-	//
-	//	fmt.Println(1337, txn.AppendRequestBody(body))
-	//
-	//	req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-	//
-	//}		/****** */
-
-	//fmt.Println("body", txn.AppendRequestBody([]byte("hoi")))
+	txn.ProcessRequestHeaders()
 
 	fmt.Println(txn.ShouldIntervene())
+
+
+	fmt.Println("Now scanning body")
+	if req.Body != nil {
+		body, err := ioutil.ReadAll(req.Body)
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
+		if err != nil {
+			log.Printf("Error reading body: %v", err)
+			return
+		}
+
+		fmt.Println("body:", string(body))
+		fmt.Println(txn.AppendRequestBody(body))
+		fmt.Println(txn.ProcessRequestBody())
+	}
+
+	fmt.Println(txn.ShouldIntervene())
+	txn.Cleanup()
+	runtime.GC()
 }
