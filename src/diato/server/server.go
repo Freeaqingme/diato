@@ -28,9 +28,12 @@ type Server struct {
 
 	httpSocketPath string
 	chrootPath     string
+	tlsCertDir     string
 
-	tlsCertStore *tlsCertStore
-	tlsCertDir   string
+	workerLimit uint
+
+	tlsCertStore   *tlsCertStore
+	curWorkerCount int32
 }
 
 func Start(config *Config) error {
@@ -55,7 +58,7 @@ func Start(config *Config) error {
 		return err
 	}
 
-	if err := s.startWorker(); err != nil {
+	if err := s.startWorkers(config.General.WorkerCount); err != nil {
 		return err
 	}
 

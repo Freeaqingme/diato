@@ -34,6 +34,7 @@ type GeneralConfig struct {
 	HttpSocketPath string `gcfg:"http-socket-path"`
 	Chroot         string
 	TlsCertDir     string `gcfg:"tls-cert-dir"`
+	WorkerCount    uint   `gcfg:"worker-count"`
 }
 
 func NewConfig() *Config {

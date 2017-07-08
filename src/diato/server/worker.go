@@ -17,20 +17,34 @@ package server
 
 import (
 	"errors"
+	"log"
 	"net"
 	"os"
 	"os/exec"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"diato/util/stop"
 )
 
-func (s *Server) startWorker() error {
+func (s *Server) startWorkers(workerCount uint) error {
 	httpFd, err := s.getNewHttpSocket()
 	if err != nil {
 		return err
 	}
 
+	throttle := time.Tick(1 * time.Second)
+	for i := 1; i <= int(workerCount); i++ {
+		if err := s.startWorker(i, httpFd, throttle); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) startWorker(id int, httpFd *os.File, throttle <-chan time.Time) error {
 	chrootFd, err := s.getChrootFd()
 	if err != nil {
 		return err
@@ -48,6 +62,7 @@ func (s *Server) startWorker() error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	atomic.AddInt32(&s.curWorkerCount, 1)
 
 	stopper := stop.NewStopper(func() {
 		cmd.Process.Signal(os.Interrupt)
@@ -56,9 +71,19 @@ func (s *Server) startWorker() error {
 
 	go func() {
 		cmd.Process.Wait()
-		if !stopper.IsStopping() {
-			panic("Worker died!")
+		remainingWorkerCount := atomic.AddInt32(&s.curWorkerCount, -1)
+		if stopper.IsStopping() {
+			return
 		}
+
+		log.Printf("Worker %d died", id)
+		if remainingWorkerCount < 1 {
+			panic("No workers remaining, that can't be good. Exiting...")
+		}
+
+		<-throttle
+		log.Printf("Restarting worker %d...", id)
+		s.startWorker(id, httpFd, throttle)
 	}()
 
 	return nil

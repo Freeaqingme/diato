@@ -16,18 +16,16 @@
 package cli
 
 import (
-	//"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	//"diato/server"
 	"diato/util/stop"
+	"diato/worker"
+	_ "diato/worker/module/modsec"
 
 	"github.com/spf13/cobra"
-	//gcfg "gopkg.in/gcfg.v1"
-	"diato/worker"
 )
 
 var workerCmd = &cobra.Command{
