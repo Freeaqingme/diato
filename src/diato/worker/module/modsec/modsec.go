@@ -16,15 +16,15 @@
 package modsec
 
 import (
-	"diato/worker"
+	"bytes"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 
 	"go-modsecurity"
-	"io/ioutil"
-	"log"
-	"bytes"
-	"runtime"
+
+	"diato/worker"
 )
 
 const name = "modsec"
@@ -44,16 +44,22 @@ func newModule(w *worker.Worker) ([]worker.Module, error) {
 		return nil, err
 	}
 
+	modsec.SetServerLogCallback(func(msg string) {
+		log.Println(msg)
+	})
+
+	log.Printf("Initialized libmodsecurity: %s", modsec.WhoAmI())
+
 	ruleset := modsec.NewRuleSet()
 	//fmt.Println(ruleset.AddFile("/home/dolf/Projects/diato/modsec.conf"))
 	rules := "SecRuleEngine On\n" +
 		"SecRequestBodyAccess On\n" +
 		"SecRequestBodyLimit 102400\n" +
-		"SecDebugLog /dev/stderr\n" +
+		//"SecDebugLog /dev/stderr\n" +
 		"SecDebugLogLevel 9\n" +
 		"SecRule REQUEST_URI|ARGS|REQUEST_BODY \"usernaaam\" \"id:1,phase:2,log,deny,msg:'Access Denied'\"\n" +
-	"SecRule REQUEST_BODY \"usernaaam\" \"id:3,phase:2,deny\"\n" +
-	"SecRule REQUEST_BODY \"usernaaam\" \"phase:2, t:none, deny,msg:'Matched some_bad_string', status:500,auditlog, id:3333\"\n" +
+		"SecRule REQUEST_BODY \"usernaaam\" \"id:3,phase:2,deny\"\n" +
+		"SecRule REQUEST_BODY \"usernaaam\" \"phase:2, t:none, deny,msg:'Matched some_bad_string', status:500,auditlog, id:3333\"\n" +
 		"SecRule ARGS \"@streq test\" \"id:2,phase:2,deny\"\n"
 	fmt.Println("rule errors", ruleset.AddRules(rules))
 
@@ -72,30 +78,36 @@ func (m *module) Name() string {
 }
 
 func (m *module) ProcessRequest(req *http.Request) {
-	fmt.Println("sending request to modsec...")
-
 	// There is no way to get the local addr from the http.Request object?
 	txn, _ := m.ruleset.NewTransaction(req.RemoteAddr, "127.0.0.1:80")
+	defer func() {
+		// TODO: If we also start processing responses,
+		// this should only be executed afterwards
+		txn.ProcessLogging()
+		txn.Cleanup()
+	}()
 
 	url := req.URL      // TODO: Check if it works with https
 	url.Host = req.Host // req.URL.host seems to be always empty at this stage, so we set it
 	httpVersion := fmt.Sprintf("%d.%d", req.ProtoMajor, req.ProtoMinor)
 
 	txn.ProcessUri(url.String(), req.Method, httpVersion)
+
 	// We don't currently parse request headers as it appears to corrupt our memory, somewhere
 	//for key,values := range req.Header{
-		//for _, value := range values {
-			//txn.AddRequestHeader(key, value)
-		//}
+	//	for _, value := range values {
+	//		txn.AddRequestHeader(key, value)
+	//	}
 	//}
 
 	txn.ProcessRequestHeaders()
 
-	fmt.Println(txn.ShouldIntervene())
-
-
-	fmt.Println("Now scanning body")
 	if req.Body != nil {
+		if txn.ShouldIntervene() {
+			log.Printf("Should intervene in request from %s for %s\n",
+				req.RemoteAddr, req.URL,
+			)
+		}
 		body, err := ioutil.ReadAll(req.Body)
 		req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
@@ -104,12 +116,17 @@ func (m *module) ProcessRequest(req *http.Request) {
 			return
 		}
 
-		fmt.Println("body:", string(body))
-		fmt.Println(txn.AppendRequestBody(body))
-		fmt.Println(txn.ProcessRequestBody())
+		if txn.AppendRequestBody(body) != nil {
+			log.Println(err.Error())
+		}
+		if txn.ProcessRequestBody() != nil {
+			log.Println(err.Error())
+		}
 	}
 
-	fmt.Println(txn.ShouldIntervene())
-	txn.Cleanup()
-	runtime.GC()
+	if txn.ShouldIntervene() {
+		log.Printf("Should intervene in request from %s for %s\n",
+			req.RemoteAddr, req.URL,
+		)
+	}
 }

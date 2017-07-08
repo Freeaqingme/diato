@@ -21,21 +21,15 @@ package worker
 
 extern void secureEnvironment();
 void __attribute__((constructor)) init(void) {
-	// secureEnvironment();
+	 secureEnvironment();
 }
 */
 import "C"
 
 import (
-	//"errors"
-	"fmt"
 	"os"
-	"syscall"
-	"time"
 
 	"diato/pb"
-
-	seccomp "github.com/seccomp/libseccomp-golang"
 )
 
 type Worker struct {
@@ -50,8 +44,8 @@ func NewWorker() *Worker {
 
 func (w *Worker) Start() error {
 	if os.Getuid() == 0 {
-		//return errors.New("The worker refuses to run as root profusely. " +
-		//	"Don't invoke it manually, just use 'daemon start'")
+		panic("The worker refuses to run as root profusely. " +
+			"Don't invoke it manually, just use 'daemon start'")
 	}
 
 	w.initModules(moduleInitializers)
@@ -67,25 +61,4 @@ func (w *Worker) Start() error {
 	}
 
 	return nil
-
-	// See: https://github.com/seccomp/libseccomp-golang/issues/23#issuecomment-296441184
-	fmt.Println("Setting seccomp")
-	if err := w.seccomp(); err != nil {
-		fmt.Println("Error while loading filter")
-		fmt.Println(err)
-		return err
-	}
-	fmt.Println("Seccomp set")
-	time.Sleep(5 * time.Second)
-	return nil
-}
-
-func (s *Worker) seccomp() error {
-	filter, err := seccomp.NewFilter(seccomp.ActKill)
-	filter.AddRule(seccomp.ScmpSyscall(syscall.SYS_MADVISE), seccomp.ActKill)
-	if err != nil {
-		return err
-	}
-	fmt.Println("about to load filter")
-	return filter.Load()
 }

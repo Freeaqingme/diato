@@ -1,0 +1,13 @@
+[Unit]
+Description=Reverse Proxying for Hipsters
+After=nss-lookup.target
+
+[Service]
+Restart=always
+RestartSec=30
+LimitNOFILE=65635
+EnvironmentFile=/etc/default/diato
+
+ExecStartPre=/bin/mkdir -p /var/run/diato/chroot/dev/
+ExecStartPre=/bin/mknod -m 444 /var/run/diato/chroot/dev/urandom c 1 9
+ExecStart=/usr/bin/diato --config /etc/diato/diato.conf daemon start

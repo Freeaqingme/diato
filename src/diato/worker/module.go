@@ -27,12 +27,6 @@ type Module interface {
 	Enabled() bool
 	Name() string
 	ProcessRequest(*http.Request)
-	//ProcessConnection()
-	//ProcessUri()
-	//ProcessRequestHeader()
-	//ProcessRequestBody()
-	//ProcessResponseHeader()
-	//ProcessResponseBody()
 }
 
 type moduleRegistry struct {

@@ -32,6 +32,9 @@ type Server struct {
 
 	httpSocketPath string
 	chrootPath     string
+	workerLimit    uint
+
+	curWorkerCount int32
 }
 
 func Start(config *Config) error {
@@ -55,7 +58,7 @@ func Start(config *Config) error {
 		return err
 	}
 
-	if err := s.startWorker(); err != nil {
+	if err := s.startWorkers(config.General.WorkerCount); err != nil {
 		return err
 	}
 

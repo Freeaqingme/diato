@@ -32,6 +32,7 @@ type Config struct {
 type GeneralConfig struct {
 	HttpSocketPath string `gcfg:"http-socket-path"`
 	Chroot         string
+	WorkerCount    uint `gcfg:"worker-count"`
 }
 
 func NewConfig() *Config {
