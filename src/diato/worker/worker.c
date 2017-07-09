@@ -121,7 +121,7 @@ void secureEnvironment(void) {
     return;
   }
 
-  isolateFileSystem();
+  //isolateFileSystem(); // TODO
   dropUserPrivs();
   dropCaps();
 //  sandbox(); // TODO

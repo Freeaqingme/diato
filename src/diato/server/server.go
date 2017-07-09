@@ -34,6 +34,7 @@ type Server struct {
 
 	tlsCertStore   *tlsCertStore
 	curWorkerCount int32
+	modules        *moduleRegistry
 }
 
 func Start(config *Config) error {
@@ -52,6 +53,10 @@ func Start(config *Config) error {
 	s.userBackend, err = Filemap.NewFilemap(userbackendConfig.Path, userbackendConfig.MinEntries)
 	if err != nil {
 		return fmt.Errorf("Could ont initialize filemap userbackend: %s", err.Error())
+	}
+
+	if err := s.initModules(moduleInitializers, config); err != nil {
+		return err
 	}
 
 	if err := s.startRpc(); err != nil {

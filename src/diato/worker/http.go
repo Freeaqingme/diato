@@ -1,3 +1,18 @@
+// Diato - Reverse Proxying for Hipsters
+//
+// Copyright 2016-2017 Dolf Schimmel
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package worker
 
 import (
@@ -24,7 +39,6 @@ func (w *Worker) httpGetListener() (net.Listener, error) {
 	}
 
 	return &proxyproto.Listener{Listener: httpLn}, nil
-
 }
 
 func (w *Worker) httpListen(httpSocket net.Listener) {
@@ -48,6 +62,7 @@ func (w *Worker) httpListen(httpSocket net.Listener) {
 func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		w.modules.ProcessRequest(req)
+		// local addr: fmt.Println(req.Context().Value(http.LocalAddrContextKey).(net.Addr))
 
 		var err error
 		req.URL.Scheme = "http"

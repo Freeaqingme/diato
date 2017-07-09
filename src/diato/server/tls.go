@@ -85,7 +85,15 @@ func (s *Server) tlsGetConfig() (*tls.Config, error) {
 }
 
 func (s *tlsCertStore) loadCertsFromFilesystem(searchDir string) error {
+	// Unfortunately there's no way (yet) to properly clean up stoppers,
+	// as such, this one will continue lingering until the end of the
+	// application lifespan. Which is a bit of a pita, but if it works...
+	stopper := stop.NewStopper(nil)
+
 	err := filepath.Walk(searchDir, func(path string, f os.FileInfo, err error) error {
+		if stopper.IsStopping() {
+			return nil // No way to abort walking, but we surely can speed it up by not parsing anything
+		}
 		if f.IsDir() {
 			return nil
 		}

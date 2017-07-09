@@ -14,19 +14,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package modsec
 
-package diato;
+import (
+	pb "diato/module/modsec/pb"
 
-service UserBackend {
-  rpc GetServerForUser(UserBackendRequest) returns (UserBackendResponse) {}
+	empty "github.com/golang/protobuf/ptypes/empty"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+)
+
+func (m *module) RegisterRpcEndpoints(s *grpc.Server) {
+	pb.RegisterModuleModsecServer(s, &rpcServer{m})
 }
 
-message UserBackendRequest {
-  string name = 1;
+type rpcServer struct {
+	module *module
 }
 
-message UserBackendResponse {
-  string server = 1;
-  uint32 port   = 2;
+func (s *rpcServer) GetRules(ctx context.Context, _ *empty.Empty) (*pb.RuleSets, error) {
+	return s.module.rules, nil
 }

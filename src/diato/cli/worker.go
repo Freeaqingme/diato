@@ -23,7 +23,6 @@ import (
 
 	"diato/util/stop"
 	"diato/worker"
-	_ "diato/worker/module/modsec"
 
 	"github.com/spf13/cobra"
 )
@@ -53,12 +52,17 @@ func runWorker(_ *cobra.Command, args []string) error {
 	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGQUIT)
 
 	w := worker.NewWorker()
-	w.Start()
+	if err := w.Start(); err != nil {
+		return err
+	}
+
+	stopper := stop.NewStopper(func() {})
 
 	select {
 	case sig := <-signalCh:
 		log.Printf("received signal '%s', exiting worker...", sig)
 		stop.Stop()
+	case <-stopper.ShouldStop():
 	}
 
 	log.Print("Successfully ceased all worker operations")

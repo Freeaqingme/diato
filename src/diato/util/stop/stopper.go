@@ -30,6 +30,7 @@ func register(s *Stopper) {
 var trackedStoppers struct {
 	sync.Mutex
 	stoppers []*Stopper
+	stopped  bool
 }
 
 type Stopper struct {
@@ -40,6 +41,8 @@ type Stopper struct {
 
 func Stop() {
 	trackedStoppers.Lock()
+	trackedStoppers.stopped = true
+
 	for _, stopper := range trackedStoppers.stoppers {
 		stopper.Stop()
 	}
@@ -53,6 +56,14 @@ func NewStopper(callback func()) *Stopper {
 		callback,
 	}
 	register(s)
+
+	trackedStoppers.Lock()
+	if trackedStoppers.stopped {
+		trackedStoppers.Unlock()
+		s.Stop()
+	} else {
+		trackedStoppers.Unlock()
+	}
 	return s
 }
 

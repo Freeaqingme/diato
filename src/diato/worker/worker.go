@@ -21,7 +21,7 @@ package worker
 
 extern void secureEnvironment();
 void __attribute__((constructor)) init(void) {
-	 secureEnvironment();
+	secureEnvironment();
 }
 */
 import "C"
@@ -30,12 +30,14 @@ import (
 	"os"
 
 	"diato/pb"
+	"google.golang.org/grpc"
 )
 
 type Worker struct {
 	userBackend diato.UserBackendClient
 
-	modules *moduleRegistry
+	modules        *moduleRegistry
+	grpcClientConn *grpc.ClientConn
 }
 
 func NewWorker() *Worker {
@@ -48,7 +50,14 @@ func (w *Worker) Start() error {
 			"Don't invoke it manually, just use 'daemon start'")
 	}
 
-	w.initModules(moduleInitializers)
+	var err error
+	if w.grpcClientConn, err = w.rpcInit(); err != nil {
+		return err
+	}
+
+	if err := w.initModules(moduleInitializers); err != nil {
+		return err
+	}
 
 	httpListener, err := w.httpGetListener()
 	if err != nil {
@@ -56,11 +65,9 @@ func (w *Worker) Start() error {
 	}
 	go w.httpListen(httpListener)
 
-	if err := w.rpcInit(); err != nil {
-		return err
-	}
-
-	// TODO: Check uid as to ensure the dropping of privileges actually ran
-
 	return nil
+}
+
+func (w *Worker) GetGrpcClientConn() *grpc.ClientConn {
+	return w.grpcClientConn
 }

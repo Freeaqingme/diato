@@ -78,7 +78,9 @@ func (s *Server) startWorker(id int, httpFd *os.File, throttle <-chan time.Time)
 
 		log.Printf("Worker %d died", id)
 		if remainingWorkerCount < 1 {
-			panic("No workers remaining, that can't be good. Exiting...")
+			log.Println("No workers remaining, that can't be good. Stopping...")
+			stop.Stop()
+			return
 		}
 
 		<-throttle

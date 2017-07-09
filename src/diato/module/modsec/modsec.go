@@ -13,20 +13,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+package modsec
 
-syntax = "proto3";
-
-package diato;
-
-service UserBackend {
-  rpc GetServerForUser(UserBackendRequest) returns (UserBackendResponse) {}
-}
-
-message UserBackendRequest {
-  string name = 1;
-}
-
-message UserBackendResponse {
-  string server = 1;
-  uint32 port   = 2;
-}
+import (
+	_ "diato/module/modsec/server"
+	_ "diato/module/modsec/worker"
+)

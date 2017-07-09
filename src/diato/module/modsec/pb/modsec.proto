@@ -16,17 +16,26 @@
 
 syntax = "proto3";
 
-package diato;
+package modsec;
 
-service UserBackend {
-  rpc GetServerForUser(UserBackendRequest) returns (UserBackendResponse) {}
+// import "github.com/golang/protobuf/ptypes/empty";
+// import "google.protobuf.empty";
+// import "google/protobuf/empty.proto";
+import "github.com/golang/protobuf/ptypes/empty/empty.proto";
+
+service ModuleModsec {
+    rpc GetRules(google.protobuf.Empty) returns (RuleSets) {}
 }
 
-message UserBackendRequest {
-  string name = 1;
+message RuleSets {
+    repeated RuleSet RuleSets = 1;
 }
 
-message UserBackendResponse {
-  string server = 1;
-  uint32 port   = 2;
+message RuleSet {
+    string rules = 1;
+
+    // Worker is not supposed to do anything with the
+    // filename, other than display it to the user in
+    // case it contains errors
+    string filename = 2;
 }

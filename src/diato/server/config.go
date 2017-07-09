@@ -19,6 +19,8 @@ import (
 	"errors"
 
 	"diato/userbackend/filemap"
+
+	modsec "diato/module/modsec/server/config"
 )
 
 type Config struct {
@@ -28,6 +30,7 @@ type Config struct {
 		Bind      string
 		TlsEnable bool `gcfg:"tls-enable"`
 	}
+	Modsec modsec.Config `gcfg:"modsecurity"`
 }
 
 type GeneralConfig struct {

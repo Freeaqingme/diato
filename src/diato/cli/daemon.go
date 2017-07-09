@@ -72,10 +72,14 @@ func runDaemon(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("diato could not start: %s", err)
 	}
 
+	stopper := stop.NewStopper(func() {})
+
 	select {
 	case sig := <-signalCh:
 		log.Printf("received signal '%s', exiting...", sig)
 		stop.Stop()
+	case <-stopper.ShouldStop():
+
 	}
 
 	log.Printf("Successfully ceased all operations. Good bye!")

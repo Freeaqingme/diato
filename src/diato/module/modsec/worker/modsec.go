@@ -24,7 +24,10 @@ import (
 
 	"go-modsecurity"
 
+	"context"
+	"diato/module/modsec/pb"
 	"diato/worker"
+	"github.com/golang/protobuf/ptypes/empty"
 )
 
 const name = "modsec"
@@ -36,6 +39,9 @@ func init() {
 type module struct {
 	modsec  *modsecurity.Modsecurity
 	ruleset *modsecurity.RuleSet
+
+	worker *worker.Worker
+	grpc   pb.ModuleModsecClient
 }
 
 func newModule(w *worker.Worker) ([]worker.Module, error) {
@@ -50,23 +56,17 @@ func newModule(w *worker.Worker) ([]worker.Module, error) {
 
 	log.Printf("Initialized libmodsecurity: %s", modsec.WhoAmI())
 
-	ruleset := modsec.NewRuleSet()
-	//fmt.Println(ruleset.AddFile("/home/dolf/Projects/diato/modsec.conf"))
-	rules := "SecRuleEngine On\n" +
-		"SecRequestBodyAccess On\n" +
-		"SecRequestBodyLimit 102400\n" +
-		//"SecDebugLog /dev/stderr\n" +
-		"SecDebugLogLevel 9\n" +
-		"SecRule REQUEST_URI|ARGS|REQUEST_BODY \"usernaaam\" \"id:1,phase:2,log,deny,msg:'Access Denied'\"\n" +
-		"SecRule REQUEST_BODY \"usernaaam\" \"id:3,phase:2,deny\"\n" +
-		"SecRule REQUEST_BODY \"usernaaam\" \"phase:2, t:none, deny,msg:'Matched some_bad_string', status:500,auditlog, id:3333\"\n" +
-		"SecRule ARGS \"@streq test\" \"id:2,phase:2,deny\"\n"
-	fmt.Println("rule errors", ruleset.AddRules(rules))
+	module := &module{
+		worker: w,
+		modsec: modsec,
+	}
 
-	return []worker.Module{&module{
-		modsec:  modsec,
-		ruleset: ruleset,
-	}}, nil
+	if err := module.loadRules(); err != nil {
+		return nil, err
+	}
+
+	return []worker.Module{module}, nil
+
 }
 
 func (m *module) Enabled() bool {
@@ -87,18 +87,19 @@ func (m *module) ProcessRequest(req *http.Request) {
 		txn.Cleanup()
 	}()
 
-	url := req.URL      // TODO: Check if it works with https
-	url.Host = req.Host // req.URL.host seems to be always empty at this stage, so we set it
+	url := req.URL // TODO: Check if it works with https
+	//url.Host = req.Host // req.URL.host seems to be always empty at this stage, so we set it
 	httpVersion := fmt.Sprintf("%d.%d", req.ProtoMajor, req.ProtoMinor)
 
 	txn.ProcessUri(url.String(), req.Method, httpVersion)
 
-	// We don't currently parse request headers as it appears to corrupt our memory, somewhere
-	//for key,values := range req.Header{
-	//	for _, value := range values {
-	//		txn.AddRequestHeader(key, value)
-	//	}
-	//}
+	// TODO: An occasional fatal error: concurrent map iteration and map write
+	//		 but is it really, or is our memory simply somewhere corrupted?
+	for key, values := range req.Header {
+		for _, value := range values {
+			txn.AddRequestHeader([]byte(key), []byte(value))
+		}
+	}
 
 	txn.ProcessRequestHeaders()
 
@@ -129,4 +130,20 @@ func (m *module) ProcessRequest(req *http.Request) {
 			req.RemoteAddr, req.URL,
 		)
 	}
+}
+
+func (m *module) loadRules() error {
+	ruleset := m.modsec.NewRuleSet()
+
+	m.grpc = pb.NewModuleModsecClient(m.worker.GetGrpcClientConn())
+	rulesets, err := m.grpc.GetRules(context.Background(), &empty.Empty{})
+
+	for _, rules := range rulesets.RuleSets {
+		if err := ruleset.AddRules(rules.Rules); err != nil {
+			return fmt.Errorf("Could not load file '%s': %s", rules.Filename, err.Error())
+		}
+	}
+
+	m.ruleset = ruleset
+	return err
 }

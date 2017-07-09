@@ -48,6 +48,7 @@ type transaction struct {
 	ruleset *RuleSet
 
 	msc_txn *C.struct_Transaction_t
+	itemsToFree []unsafe.Pointer
 }
 
 // Create a new transaction for a given configuration and ModSecurity core.
@@ -82,17 +83,21 @@ func (r *RuleSet) NewTransaction(remoteAddr, localAddr string) (*transaction, er
 		return nil, fmt.Errorf("Could not initialize transaction")
 	}
 
-	cRemoteIp := C.CString(remoteIp) // msc will free() these for us
+	cRemoteIp := C.CString(remoteIp)
 	cLocalIp := C.CString(localIp)
 
 	if C.msc_process_connection(msc_txn, cRemoteIp, C.int(remotePortInt), cLocalIp, C.int(localPortInt)) != 1 {
+		C.free(unsafe.Pointer(cRemoteIp))
+		C.free(unsafe.Pointer(cLocalIp))
 		return nil, errors.New("could not process connection")
 	}
 
-	return &transaction{
+	txn :=  &transaction{
 		ruleset: r,
 		msc_txn: msc_txn,
-	}, nil
+	}
+	txn.deferFree(unsafe.Pointer(cRemoteIp), unsafe.Pointer(cLocalIp))
+	return txn, nil
 }
 
 // Perform the analysis on the URI and all the query string variables.
@@ -104,9 +109,10 @@ func (txn *transaction) ProcessUri(uri, method, httpVersion string) error {
 	cUri := C.CString(uri)
 	cMethod := C.CString(method)
 	cHttpVersion := C.CString(httpVersion)
-	defer C.free(unsafe.Pointer(cUri))
-	defer C.free(unsafe.Pointer(cMethod))
-	defer C.free(unsafe.Pointer(cHttpVersion))
+	txn.deferFree(unsafe.Pointer(cUri),
+		unsafe.Pointer(cMethod),
+		unsafe.Pointer(cHttpVersion),
+	)
 
 	if C.msc_process_uri(txn.msc_txn, cUri, cMethod, cHttpVersion) != 1 {
 		return errors.New("Could not process URI")
@@ -116,12 +122,13 @@ func (txn *transaction) ProcessUri(uri, method, httpVersion string) error {
 
 // With this function it is possible to feed ModSecurity with a request header.
 func (txn *transaction) AddRequestHeader(key, value []byte) error {
-	cKey := (*C.uchar)(unsafe.Pointer(&key[0]))
-	cValue := (*C.uchar)(unsafe.Pointer(&value[0]))
-	defer C.free(unsafe.Pointer(cKey))
-	defer C.free(unsafe.Pointer(cValue))
+	cKey := C.CBytes(key)
+	cValue := C.CBytes(value)
+	txn.deferFree(unsafe.Pointer(cKey), unsafe.Pointer(cValue))
 
-	if C.msc_add_request_header(txn.msc_txn, cKey, cValue) != 1 {
+	if C.msc_add_request_header(txn.msc_txn,
+		(*C.uchar)(unsafe.Pointer(cKey)),
+		(*C.uchar)(unsafe.Pointer(cValue))) != 1 {
 		return errors.New("Could not add request header")
 	}
 	return nil
@@ -143,8 +150,11 @@ func (txn *transaction) ProcessRequestHeaders() error {
 // With this function it is possible to feed ModSecurity with data for
 // inspection regarding the request body.
 func (txn *transaction) AppendRequestBody(bodyBuf []byte) error {
+	bodyBufC := C.CBytes(append(bodyBuf, '\n'))
+	txn.deferFree(unsafe.Pointer(bodyBufC))
+
 	if 1 != C.msc_append_request_body(txn.msc_txn,
-				(*C.uchar)(unsafe.Pointer(C.CBytes(bodyBuf))),
+				(*C.uchar)(unsafe.Pointer(bodyBufC)),
 				(C.size_t)(len(bodyBuf))) {
 		return errors.New("Could not append Request Body")
 	}
@@ -192,4 +202,11 @@ func (txn *transaction) ShouldIntervene() bool {
 func (txn *transaction) Cleanup() {
 	C.msc_transaction_cleanup(txn.msc_txn)
 	txn.msc_txn = nil
+	for _, freeMe := range txn.itemsToFree {
+		C.free(freeMe)
+	}
+}
+
+func (txn *transaction) deferFree(addToList ...unsafe.Pointer) {
+	txn.itemsToFree = append(txn.itemsToFree, addToList...)
 }

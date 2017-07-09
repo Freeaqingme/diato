@@ -47,6 +47,10 @@ func (s *Server) startRpc() error {
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterUserBackendServer(grpcServer, &rpcUserBackendServer{s})
+	for _, module := range s.modules.modules {
+		module.RegisterRpcEndpoints(grpcServer)
+	}
+
 	reflection.Register(grpcServer)
 
 	stopper := stop.NewStopper(func() {
