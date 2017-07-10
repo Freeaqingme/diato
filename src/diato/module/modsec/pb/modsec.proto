@@ -18,9 +18,6 @@ syntax = "proto3";
 
 package modsec;
 
-// import "github.com/golang/protobuf/ptypes/empty";
-// import "google.protobuf.empty";
-// import "google/protobuf/empty.proto";
 import "github.com/golang/protobuf/ptypes/empty/empty.proto";
 
 service ModuleModsec {

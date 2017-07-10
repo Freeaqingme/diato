@@ -18,6 +18,8 @@ syntax = "proto3";
 
 package diato;
 
+import "github.com/golang/protobuf/ptypes/empty/empty.proto";
+
 service UserBackend {
   rpc GetServerForUser(UserBackendRequest) returns (UserBackendResponse) {}
 }
@@ -29,4 +31,12 @@ message UserBackendRequest {
 message UserBackendResponse {
   string server = 1;
   uint32 port   = 2;
+}
+
+service Server {
+  rpc GetConfigContents(google.protobuf.Empty) returns (ConfigContents) {}
+}
+
+message ConfigContents {
+  bytes contents = 1;
 }

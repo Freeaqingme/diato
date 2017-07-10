@@ -16,11 +16,13 @@
 package modsec
 
 import (
-	"diato/server"
 	"fmt"
 	"io/ioutil"
 
+	"diato/config"
 	"diato/module/modsec/pb"
+	"diato/server"
+
 	"github.com/mattn/go-zglob"
 )
 
@@ -36,7 +38,7 @@ type module struct {
 	rules *pb.RuleSets
 }
 
-func newModule(w *server.Server, config *server.Config) ([]server.Module, error) {
+func newModule(w *server.Server, config *config.Config) ([]server.Module, error) {
 	module := &module{
 		enabled: config.Modsec.Enabled,
 		rules: &pb.RuleSets{

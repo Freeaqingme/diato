@@ -19,8 +19,12 @@ import (
 	"errors"
 	"fmt"
 
+	"diato/config"
 	"diato/userbackend"
 	"diato/userbackend/filemap"
+
+	"gopkg.in/gcfg.v1"
+	"io/ioutil"
 )
 
 type Server struct {
@@ -35,13 +39,18 @@ type Server struct {
 	tlsCertStore   *tlsCertStore
 	curWorkerCount int32
 	modules        *moduleRegistry
+
+	// configFileContents contains the contents of the
+	// config file as it was read on start-up. This is
+	// not used in the server other than to pass it on
+	// to the worker when requested.
+	configFileContents []byte
 }
 
-func Start(config *Config) error {
-	s := &Server{
-		httpSocketPath: config.General.HttpSocketPath,
-		chrootPath:     config.General.Chroot,
-		tlsCertDir:     config.General.TlsCertDir,
+func Start(configPath string) error {
+	s, config, err := newServer(configPath)
+	if err != nil {
+		return err
 	}
 
 	if !config.FilemapUserbackend.Enabled {
@@ -49,7 +58,6 @@ func Start(config *Config) error {
 	}
 
 	userbackendConfig := config.FilemapUserbackend
-	var err error
 	s.userBackend, err = Filemap.NewFilemap(userbackendConfig.Path, userbackendConfig.MinEntries)
 	if err != nil {
 		return fmt.Errorf("Could ont initialize filemap userbackend: %s", err.Error())
@@ -74,4 +82,29 @@ func Start(config *Config) error {
 	}
 
 	return nil
+}
+
+func newServer(configPath string) (*Server, *config.Config, error) {
+	configFileContents, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Could not open config file: %s", err.Error())
+	}
+
+	config := config.NewConfig()
+	err = gcfg.ReadFileInto(config, configPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Could not parse configuration: %s", err.Error())
+	}
+
+	if err = config.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("Could not parse configuration: %s", err.Error())
+	}
+
+	s := &Server{
+		httpSocketPath:     config.General.HttpSocketPath,
+		chrootPath:         config.General.Chroot,
+		tlsCertDir:         config.General.TlsCertDir,
+		configFileContents: configFileContents,
+	}
+	return s, config, nil
 }

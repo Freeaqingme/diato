@@ -19,6 +19,8 @@ import (
 	"log"
 	"net/http"
 	"sync"
+
+	config "diato/config"
 )
 
 type moduleInitializer func(*Worker) Module
@@ -33,22 +35,22 @@ type moduleRegistry struct {
 	modules []Module
 }
 
-var moduleInitializers []func(*Worker) ([]Module, error)
+var moduleInitializers []func(*Worker, *config.Config) ([]Module, error)
 
-func RegisterModule(initializer func(*Worker) ([]Module, error)) {
+func RegisterModule(initializer func(*Worker, *config.Config) ([]Module, error)) {
 	if moduleInitializers == nil {
-		moduleInitializers = make([]func(*Worker) ([]Module, error), 0)
+		moduleInitializers = make([]func(*Worker, *config.Config) ([]Module, error), 0)
 	}
 
 	moduleInitializers = append(moduleInitializers, initializer)
 }
 
-func (w *Worker) initModules(modules []func(*Worker) ([]Module, error)) error {
+func (w *Worker) initModules(modules []func(*Worker, *config.Config) ([]Module, error), config *config.Config) error {
 	registry := &moduleRegistry{
 		modules: make([]Module, 0),
 	}
 	for _, m := range modules {
-		initializedModules, err := m(w)
+		initializedModules, err := m(w, config)
 		if err != nil {
 			return err
 		}

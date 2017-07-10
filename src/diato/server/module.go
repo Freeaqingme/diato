@@ -18,10 +18,11 @@ package server
 import (
 	"log"
 
+	"diato/config"
 	"google.golang.org/grpc"
 )
 
-type moduleInitializer func(*Server, *Config) Module
+type moduleInitializer func(*Server, *config.Config) Module
 
 type Module interface {
 	Enabled() bool
@@ -33,17 +34,17 @@ type moduleRegistry struct {
 	modules []Module
 }
 
-var moduleInitializers []func(*Server, *Config) ([]Module, error)
+var moduleInitializers []func(*Server, *config.Config) ([]Module, error)
 
-func RegisterModule(initializer func(*Server, *Config) ([]Module, error)) {
+func RegisterModule(initializer func(*Server, *config.Config) ([]Module, error)) {
 	if moduleInitializers == nil {
-		moduleInitializers = make([]func(*Server, *Config) ([]Module, error), 0)
+		moduleInitializers = make([]func(*Server, *config.Config) ([]Module, error), 0)
 	}
 
 	moduleInitializers = append(moduleInitializers, initializer)
 }
 
-func (s *Server) initModules(modules []func(*Server, *Config) ([]Module, error), config *Config) error {
+func (s *Server) initModules(modules []func(*Server, *config.Config) ([]Module, error), config *config.Config) error {
 	registry := &moduleRegistry{
 		modules: make([]Module, 0),
 	}

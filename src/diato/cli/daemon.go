@@ -26,7 +26,6 @@ import (
 	"diato/util/stop"
 
 	"github.com/spf13/cobra"
-	gcfg "gopkg.in/gcfg.v1"
 )
 
 var daemonCmd = &cobra.Command{
@@ -52,22 +51,11 @@ func init() {
 func runDaemon(_ *cobra.Command, args []string) error {
 	log.Printf("Starting Server")
 
-	config := server.NewConfig()
-	err := gcfg.ReadFileInto(config, daemonOpts.ConfFile)
-	if err != nil {
-		return fmt.Errorf("Could not parse configuration: %s", err.Error())
-	}
-
-	if err = config.Validate(); err != nil {
-		return fmt.Errorf("Could not parse configuration: %s", err.Error())
-	}
-
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt)
 	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGQUIT)
 
-	if err := server.Start(config); err != nil {
-		log.Print(err.Error())
+	if err := server.Start(daemonOpts.ConfFile); err != nil {
 		stop.Stop()
 		return fmt.Errorf("diato could not start: %s", err)
 	}

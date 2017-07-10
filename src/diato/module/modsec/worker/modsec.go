@@ -17,17 +17,18 @@ package modsec
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 
-	"go-modsecurity"
-
-	"context"
+	"diato/config"
 	"diato/module/modsec/pb"
 	"diato/worker"
+
 	"github.com/golang/protobuf/ptypes/empty"
+	"go-modsecurity"
 )
 
 const name = "modsec"
@@ -37,6 +38,7 @@ func init() {
 }
 
 type module struct {
+	enabled bool
 	modsec  *modsecurity.Modsecurity
 	ruleset *modsecurity.RuleSet
 
@@ -44,7 +46,11 @@ type module struct {
 	grpc   pb.ModuleModsecClient
 }
 
-func newModule(w *worker.Worker) ([]worker.Module, error) {
+func newModule(w *worker.Worker, config *config.Config) ([]worker.Module, error) {
+	if !config.Modsec.Enabled {
+		return []worker.Module{&module{enabled: false}}, nil
+	}
+
 	modsec, err := modsecurity.NewModsecurity()
 	if err != nil {
 		return nil, err
@@ -57,8 +63,9 @@ func newModule(w *worker.Worker) ([]worker.Module, error) {
 	log.Printf("Initialized libmodsecurity: %s", modsec.WhoAmI())
 
 	module := &module{
-		worker: w,
-		modsec: modsec,
+		enabled: true,
+		worker:  w,
+		modsec:  modsec,
 	}
 
 	if err := module.loadRules(); err != nil {
@@ -70,7 +77,7 @@ func newModule(w *worker.Worker) ([]worker.Module, error) {
 }
 
 func (m *module) Enabled() bool {
-	return true
+	return m.enabled
 }
 
 func (m *module) Name() string {

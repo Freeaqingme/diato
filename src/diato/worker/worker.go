@@ -27,10 +27,14 @@ void __attribute__((constructor)) init(void) {
 import "C"
 
 import (
+	"fmt"
 	"os"
 
+	"diato/config"
 	"diato/pb"
+
 	"google.golang.org/grpc"
+	"gopkg.in/gcfg.v1"
 )
 
 type Worker struct {
@@ -55,7 +59,12 @@ func (w *Worker) Start() error {
 		return err
 	}
 
-	if err := w.initModules(moduleInitializers); err != nil {
+	config, err := w.getConfig()
+	if err != nil {
+		return err
+	}
+
+	if err := w.initModules(moduleInitializers, config); err != nil {
 		return err
 	}
 
@@ -68,6 +77,21 @@ func (w *Worker) Start() error {
 	return nil
 }
 
-func (w *Worker) GetGrpcClientConn() *grpc.ClientConn {
-	return w.grpcClientConn
+func (w *Worker) getConfig() (*config.Config, error) {
+	configContents, err := w.getConfigContents()
+	if err != nil {
+		return nil, err
+	}
+
+	config := config.NewConfig()
+	err = gcfg.ReadStringInto(config, string(configContents))
+	if err != nil {
+		return nil, fmt.Errorf("Could not parse configuration: %s", err.Error())
+	}
+
+	if err = config.Validate(); err != nil {
+		return nil, fmt.Errorf("Could not parse configuration: %s", err.Error())
+	}
+
+	return config, nil
 }

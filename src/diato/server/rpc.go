@@ -22,19 +22,11 @@ import (
 	pb "diato/pb"
 	"diato/util/stop"
 
+	empty "github.com/golang/protobuf/ptypes/empty"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
-
-type rpcUserBackendServer struct {
-	diato *Server
-}
-
-func (s *rpcUserBackendServer) GetServerForUser(ctx context.Context, in *pb.UserBackendRequest) (*pb.UserBackendResponse, error) {
-	host, port, err := s.diato.userBackend.GetServerForUser(in.Name)
-	return &pb.UserBackendResponse{host, port}, err
-}
 
 func (s *Server) startRpc() error {
 	// Ideally this should be a socket too, but there appears
@@ -47,6 +39,7 @@ func (s *Server) startRpc() error {
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterUserBackendServer(grpcServer, &rpcUserBackendServer{s})
+	pb.RegisterServerServer(grpcServer, &rpcServerServer{s})
 	for _, module := range s.modules.modules {
 		module.RegisterRpcEndpoints(grpcServer)
 	}
@@ -67,4 +60,21 @@ func (s *Server) startRpc() error {
 	}()
 
 	return nil
+}
+
+type rpcServerServer struct {
+	diato *Server
+}
+
+func (s *rpcServerServer) GetConfigContents(ctx context.Context, _ *empty.Empty) (*pb.ConfigContents, error) {
+	return &pb.ConfigContents{s.diato.configFileContents}, nil
+}
+
+type rpcUserBackendServer struct {
+	diato *Server
+}
+
+func (s *rpcUserBackendServer) GetServerForUser(ctx context.Context, in *pb.UserBackendRequest) (*pb.UserBackendResponse, error) {
+	host, port, err := s.diato.userBackend.GetServerForUser(in.Name)
+	return &pb.UserBackendResponse{host, port}, err
 }
