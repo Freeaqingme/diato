@@ -29,6 +29,7 @@ type Module interface {
 	Enabled() bool
 	Name() string
 	ProcessRequest(*http.Request)
+	PostModifyResponse(w *http.Response)
 }
 
 type moduleRegistry struct {
@@ -71,7 +72,17 @@ func (w *Worker) initModules(modules []func(*Worker, *config.Config) ([]Module, 
 func (r *moduleRegistry) ProcessRequest(req *http.Request) {
 	callbacks := make([]func(), 0)
 	for _, m := range r.modules {
-		callbacks = append(callbacks, func() { m.ProcessRequest(req) })
+		callback := m.ProcessRequest
+		callbacks = append(callbacks, func() { (callback)(req) })
+	}
+	r.parallelCallback(callbacks)
+}
+
+func (r *moduleRegistry) PostModifyResponse(resp *http.Response) {
+	callbacks := make([]func(), 0)
+	for _, m := range r.modules {
+		callback := m.PostModifyResponse
+		callbacks = append(callbacks, func() { (callback)(resp) })
 	}
 	r.parallelCallback(callbacks)
 }
@@ -82,11 +93,11 @@ func (r *moduleRegistry) parallelCallback(callbacks []func()) chan interface{} {
 	wg := &sync.WaitGroup{}
 	for _, callback := range callbacks {
 		wg.Add(1)
-		go func() {
+		go func(callback func()) {
 			callback()
 			out <- struct{}{}
 			wg.Done()
-		}()
+		}(callback)
 	}
 
 	go func() {
@@ -96,3 +107,9 @@ func (r *moduleRegistry) parallelCallback(callbacks []func()) chan interface{} {
 
 	return out
 }
+
+type ModuleBase struct {
+}
+
+func (*ModuleBase) ProcessRequest(*http.Request)      {}
+func (*ModuleBase) PostModifyResponse(*http.Response) {}

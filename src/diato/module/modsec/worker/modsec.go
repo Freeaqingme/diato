@@ -38,6 +38,8 @@ func init() {
 }
 
 type module struct {
+	*worker.ModuleBase
+
 	enabled bool
 	modsec  *modsecurity.Modsecurity
 	ruleset *modsecurity.RuleSet
