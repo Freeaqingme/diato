@@ -20,6 +20,7 @@ import (
 
 	"diato/userbackend/filemap"
 
+	elasticsearch "diato/module/elasticsearch/worker/config"
 	modsec "diato/module/modsec/server/config"
 )
 
@@ -30,7 +31,9 @@ type Config struct {
 		Bind      string
 		TlsEnable bool `gcfg:"tls-enable"`
 	}
-	Modsec modsec.Config `gcfg:"modsecurity"`
+
+	Elasticsearch elasticsearch.Config `gcfg:"elasticsearch"`
+	Modsec        modsec.Config        `gcfg:"modsecurity"`
 }
 
 type GeneralConfig struct {

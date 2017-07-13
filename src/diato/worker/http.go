@@ -22,7 +22,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"os"
 	"time"
 
@@ -59,12 +58,13 @@ func (w *Worker) httpListen(httpSocket net.Listener) {
 	srv.Serve(httpSocket)
 }
 
-func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
+func (w *Worker) newHttpHandler() *ReverseProxy {
 	director := func(req *http.Request) {
 		w.modules.ProcessRequest(req)
 		// local addr: fmt.Println(req.Context().Value(http.LocalAddrContextKey).(net.Addr))
 
 		var err error
+		ctxInfo := req.Context().Value("diato").(*ContextInfo)
 		req.URL.Scheme = "http"
 		req.URL.Host, err = w.getHttpBackend(req)
 		if err != nil {
@@ -73,8 +73,9 @@ func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 			return
 		}
 
-		log.Printf("%s '%s %s %s' -> %s '%s'\n",
+		log.Printf("%s %s '%s %s %s' -> %s '%s'\n",
 			req.RemoteAddr,
+			ctxInfo.RequestIdString(),
 			req.Method, req.RequestURI,
 			req.Host,
 			req.URL.Host,
@@ -82,7 +83,7 @@ func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 		)
 	}
 
-	return &httputil.ReverseProxy{
+	return &ReverseProxy{
 		Director:      director,
 		FlushInterval: 10 * time.Millisecond,
 		Transport: &httpTransport{
@@ -107,7 +108,7 @@ func (w *Worker) newHttpHandler() *httputil.ReverseProxy {
 
 func (w *Worker) getHttpBackend(req *http.Request) (string, error) {
 	r, err := w.userBackend.GetServerForUser(
-		context.Background(),
+		req.Context(),
 		&pb.UserBackendRequest{Name: req.Host},
 	)
 	if err != nil {

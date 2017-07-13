@@ -16,9 +16,11 @@
 package worker
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	config "diato/config"
 )
@@ -29,7 +31,7 @@ type Module interface {
 	Enabled() bool
 	Name() string
 	ProcessRequest(*http.Request)
-	PostModifyResponse(w *http.Response)
+	PostModifyResponse(r *http.Request, w *http.Response)
 }
 
 type moduleRegistry struct {
@@ -79,10 +81,21 @@ func (r *moduleRegistry) ProcessRequest(req *http.Request) {
 }
 
 func (r *moduleRegistry) PostModifyResponse(resp *http.Response) {
+	contextInfo := resp.Request.Context().Value("diato")
+	localAddr := resp.Request.Context().Value(http.LocalAddrContextKey)
+
+	// Initialize a new context that won't be canceled after the
+	// request has finished
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+
+	ctx = context.WithValue(ctx, "diato", contextInfo)
+	ctx = context.WithValue(ctx, http.LocalAddrContextKey, localAddr)
+	request := resp.Request.WithContext(ctx)
+
 	callbacks := make([]func(), 0)
 	for _, m := range r.modules {
 		callback := m.PostModifyResponse
-		callbacks = append(callbacks, func() { (callback)(resp) })
+		callbacks = append(callbacks, func() { (callback)(request, resp) })
 	}
 	r.parallelCallback(callbacks)
 }
@@ -111,5 +124,5 @@ func (r *moduleRegistry) parallelCallback(callbacks []func()) chan interface{} {
 type ModuleBase struct {
 }
 
-func (*ModuleBase) ProcessRequest(*http.Request)      {}
-func (*ModuleBase) PostModifyResponse(*http.Response) {}
+func (*ModuleBase) ProcessRequest(*http.Request)                     {}
+func (*ModuleBase) PostModifyResponse(*http.Request, *http.Response) {}

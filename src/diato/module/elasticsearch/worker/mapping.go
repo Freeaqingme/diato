@@ -13,9 +13,31 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package cli
+
+package elasticsearch
 
 import (
-	_ "diato/module/elasticsearch"
-	_ "diato/module/modsec"
+	"net/http"
+
+	"diato/module/elasticsearch/worker/mapping/v1"
 )
+
+type mapping interface {
+	PersistRequest(*http.Request, *http.Response)
+	EnsureTemplate() error
+}
+
+func (m *module) getActiveMapping() mapping {
+	if m.activeMapping == nil {
+		m.activeMapping = v1.NewMapping(m.client)
+	}
+	return m.activeMapping
+}
+
+func (m *module) persistRequest(req *http.Request, resp *http.Response) {
+	m.getActiveMapping().PersistRequest(req, resp)
+}
+
+func (m *module) ensureTemplate() error {
+	return m.getActiveMapping().EnsureTemplate()
+}
