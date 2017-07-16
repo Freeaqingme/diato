@@ -30,9 +30,10 @@ import (
 type Server struct {
 	userBackend userbackend.Userbackend
 
-	httpSocketPath string
-	chrootPath     string
-	tlsCertDir     string
+	httpSocketPath  string
+	httpsSocketPath string
+	chrootPath      string
+	tlsCertDir      string
 
 	workerLimit uint
 
@@ -45,6 +46,8 @@ type Server struct {
 	// not used in the server other than to pass it on
 	// to the worker when requested.
 	configFileContents []byte
+
+	httpBind []httpBind
 }
 
 func Start(configPath string) error {
@@ -75,8 +78,15 @@ func Start(configPath string) error {
 		return err
 	}
 
-	for _, listen := range config.Listen {
-		if err := s.Listen(listen.Bind, listen.TlsEnable); err != nil {
+	for name, l := range config.Listen {
+		bind := httpBind{
+			name:       name,
+			listen:     l.Bind,
+			proxyProto: l.ProxyProtocol,
+			hasSsl:     l.TlsEnable,
+		}
+		s.httpBind = append(s.httpBind, bind)
+		if err := s.Listen(&bind); err != nil {
 			return err
 		}
 	}
@@ -102,6 +112,7 @@ func newServer(configPath string) (*Server, *config.Config, error) {
 
 	s := &Server{
 		httpSocketPath:     config.General.HttpSocketPath,
+		httpsSocketPath:    config.General.HttpsSocketPath,
 		chrootPath:         config.General.Chroot,
 		tlsCertDir:         config.General.TlsCertDir,
 		configFileContents: configFileContents,

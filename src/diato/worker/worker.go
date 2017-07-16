@@ -68,11 +68,17 @@ func (w *Worker) Start() error {
 		return err
 	}
 
-	httpListener, err := w.httpGetListener()
+	httpListener, err := w.httpGetListener(false)
 	if err != nil {
 		return err
 	}
-	go w.httpListen(httpListener)
+	go w.httpListen(httpListener, false)
+
+	httpsListener, err := w.httpGetListener(true)
+	if err != nil {
+		return err
+	}
+	go w.httpListen(httpsListener, true)
 
 	return nil
 }

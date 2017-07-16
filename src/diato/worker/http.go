@@ -31,8 +31,15 @@ import (
 	"github.com/Freeaqingme/go-proxyproto"
 )
 
-func (w *Worker) httpGetListener() (net.Listener, error) {
-	httpLn, err := net.FileListener(os.NewFile(4, "[socket]"))
+func (w *Worker) httpGetListener(tls bool) (net.Listener, error) {
+	var fd uintptr
+	if tls {
+		fd = 5
+	} else {
+		fd = 4
+	}
+
+	httpLn, err := net.FileListener(os.NewFile(fd, "[socket]"))
 	if err != nil {
 		return nil, err
 	}
@@ -40,11 +47,11 @@ func (w *Worker) httpGetListener() (net.Listener, error) {
 	return &proxyproto.Listener{Listener: httpLn}, nil
 }
 
-func (w *Worker) httpListen(httpSocket net.Listener) {
+func (w *Worker) httpListen(httpSocket net.Listener, tls bool) {
 	srv := &http.Server{
 		ReadTimeout: 5 * time.Second,
 		IdleTimeout: 120 * time.Second,
-		Handler:     w.newHttpHandler(),
+		Handler:     w.newHttpHandler(tls),
 	}
 
 	stop.NewStopper(func() {
@@ -58,7 +65,7 @@ func (w *Worker) httpListen(httpSocket net.Listener) {
 	srv.Serve(httpSocket)
 }
 
-func (w *Worker) newHttpHandler() *ReverseProxy {
+func (w *Worker) newHttpHandler(tls bool) *ReverseProxy {
 	director := func(req *http.Request) {
 		w.modules.ProcessRequest(req)
 		// local addr: fmt.Println(req.Context().Value(http.LocalAddrContextKey).(net.Addr))
@@ -72,14 +79,18 @@ func (w *Worker) newHttpHandler() *ReverseProxy {
 			req.URL.Host = "" // TODO: This is suboptimal as modsec will crash upon an empty url
 			return
 		}
+		if tls {
+			req.Header.Add("X-Forwarded-Proto", "https")
+		}
 
-		log.Printf("%s %s '%s %s %s' -> %s '%s'\n",
+		log.Printf("%s %s '%s %s %s' -> %s '%s' (SSL: %t)\n",
 			req.RemoteAddr,
 			ctxInfo.RequestIdString(),
 			req.Method, req.RequestURI,
 			req.Host,
 			req.URL.Host,
 			req.UserAgent(),
+			tls,
 		)
 	}
 

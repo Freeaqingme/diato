@@ -21,24 +21,45 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 
 	"diato/util/stop"
+
+	"github.com/Freeaqingme/go-proxyproto"
 )
 
-func (s *Server) Listen(bind string, tlsEnable bool) error {
-	ln, err := net.Listen("tcp", bind)
+type httpBind struct {
+	name       string
+	listen     string
+	proxyProto bool
+	hasSsl     bool
+}
+
+func (s *Server) Listen(bind *httpBind) error {
+	ln, err := net.Listen("tcp", bind.listen)
 	if err != nil {
 		return err
 	}
 
-	if tlsEnable {
+	logMsgSuffix := []string{}
+	if bind.proxyProto {
+		ln = &proxyproto.Listener{Listener: ln}
+		logMsgSuffix = append(logMsgSuffix, "Proxy Protocol")
+	}
+
+	if bind.hasSsl {
 		ln, err = s.tlsListen(ln)
 		if err != nil {
 			return err
 		}
-		log.Print("Now listening on " + bind + " (TLS)")
+		logMsgSuffix = append(logMsgSuffix, "TLS")
+	}
+
+	if len(logMsgSuffix) == 0 {
+		log.Printf("Now listening on %s: %s\n", bind.name, bind.listen)
 	} else {
-		log.Print("Now listening on " + bind)
+		log.Printf("Now listening on %s: %s (%s)\n",
+			bind.name, bind.listen, strings.Join(logMsgSuffix, ", "))
 	}
 
 	stopper := stop.NewStopper(func() {
@@ -54,16 +75,20 @@ func (s *Server) Listen(bind string, tlsEnable bool) error {
 				}
 				panic(err.Error())
 			}
-			go s.handleConn(conn)
+			go s.handleConn(bind, conn)
 		}
 	}()
 
 	return nil
-
 }
 
-func (s *Server) handleConn(conn net.Conn) {
-	client, err := net.Dial("unix", s.httpSocketPath)
+func (s *Server) handleConn(bind *httpBind, conn net.Conn) {
+	path := s.httpSocketPath
+	if bind.hasSsl {
+		path = s.httpsSocketPath
+	}
+
+	client, err := net.Dial("unix", path)
 	if err != nil {
 		log.Fatalf("Dial failed: %v", err)
 	}

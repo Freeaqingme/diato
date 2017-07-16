@@ -29,14 +29,19 @@ import (
 )
 
 func (s *Server) startWorkers(workerCount uint) error {
-	httpFd, err := s.getNewHttpSocket()
+	httpFd, err := s.getNewHttpSocket(false)
+	if err != nil {
+		return err
+	}
+
+	httpsFd, err := s.getNewHttpSocket(true)
 	if err != nil {
 		return err
 	}
 
 	throttle := time.Tick(1 * time.Second)
 	for i := 1; i <= int(workerCount); i++ {
-		if err := s.startWorker(i, httpFd, throttle); err != nil {
+		if err := s.startWorker(i, httpFd, httpsFd, throttle); err != nil {
 			return err
 		}
 	}
@@ -44,14 +49,14 @@ func (s *Server) startWorkers(workerCount uint) error {
 	return nil
 }
 
-func (s *Server) startWorker(id int, httpFd *os.File, throttle <-chan time.Time) error {
+func (s *Server) startWorker(id int, httpFd *os.File, httpsFd *os.File, throttle <-chan time.Time) error {
 	chrootFd, err := s.getChrootFd()
 	if err != nil {
 		return err
 	}
 
 	cmd := exec.Command(os.Args[0], "internal-worker", "start")
-	cmd.ExtraFiles = []*os.File{chrootFd, httpFd}
+	cmd.ExtraFiles = []*os.File{chrootFd, httpFd, httpsFd}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -85,7 +90,7 @@ func (s *Server) startWorker(id int, httpFd *os.File, throttle <-chan time.Time)
 
 		<-throttle
 		log.Printf("Restarting worker %d...", id)
-		s.startWorker(id, httpFd, throttle)
+		s.startWorker(id, httpFd, httpsFd, throttle)
 	}()
 
 	return nil
@@ -103,8 +108,12 @@ func (s *Server) startWorker(id int, httpFd *os.File, throttle <-chan time.Time)
 // worker which is responsible for listening and accepting
 // connections on this socket. This ensures the worker can run
 // in a permission-less environment and does not require any IO.
-func (s *Server) getNewHttpSocket() (*os.File, error) {
-	listener, err := net.Listen("unix", s.httpSocketPath)
+func (s *Server) getNewHttpSocket(tls bool) (*os.File, error) {
+	path := s.httpSocketPath
+	if tls {
+		path = s.httpsSocketPath
+	}
+	listener, err := net.Listen("unix", path)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +124,7 @@ func (s *Server) getNewHttpSocket() (*os.File, error) {
 	}
 
 	stop.NewStopper(func() {
-		os.Remove(s.httpSocketPath)
+		os.Remove(path)
 	})
 	return fd, nil
 }

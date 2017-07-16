@@ -28,8 +28,9 @@ type Config struct {
 	General            GeneralConfig  `gcfg:"diato"`
 	FilemapUserbackend Filemap.Config `gcfg:"filemap-userbackend"`
 	Listen             map[string]*struct {
-		Bind      string
-		TlsEnable bool `gcfg:"tls-enable"`
+		Bind          string
+		TlsEnable     bool `gcfg:"tls-enable"`
+		ProxyProtocol bool `gcfg:"proxy-protocol"`
 	}
 
 	Elasticsearch elasticsearch.Config `gcfg:"elasticsearch"`
@@ -37,10 +38,11 @@ type Config struct {
 }
 
 type GeneralConfig struct {
-	HttpSocketPath string `gcfg:"http-socket-path"`
-	Chroot         string
-	TlsCertDir     string `gcfg:"tls-cert-dir"`
-	WorkerCount    uint   `gcfg:"worker-count"`
+	HttpSocketPath  string `gcfg:"http-socket-path"`
+	HttpsSocketPath string `gcfg:"https-socket-path"`
+	Chroot          string
+	TlsCertDir      string `gcfg:"tls-cert-dir"`
+	WorkerCount     uint   `gcfg:"worker-count"`
 }
 
 func NewConfig() *Config {
